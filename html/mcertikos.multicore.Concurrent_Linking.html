@@ -1,0 +1,186 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<link href="coqdoc.css" rel="stylesheet" type="text/css" />
+<title>mcertikos.multicore.Concurrent_Linking</title>
+</head>
+
+<body>
+
+<div id="page">
+
+<div id="header">
+</div>
+
+<div id="main">
+
+<h1 class="libtitle">Library mcertikos.multicore.Concurrent_Linking</h1>
+
+<div class="code">
+
+<br/>
+</div>
+
+<div class="doc">
+This file provide the semantics for the <span class="inlinecode"><span class="id" title="var">Asm</span></span> instructions. Since we introduce paging mechanisms, the semantics of memory load and store are different from <span class="inlinecode"><span class="id" title="var">Compcert</span></span> <span class="inlinecode"><span class="id" title="var">Asm</span></span>
+</div>
+<div class="code">
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <span class="id" title="library">Coqlib</span>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <span class="id" title="library">Maps</span>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.layerlib.ASTExtra.html#"><span class="id" title="library">ASTExtra</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <span class="id" title="library">Integers</span>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <span class="id" title="library">Floats</span>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <span class="id" title="library">Values</span>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <span class="id" title="library">Events</span>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <span class="id" title="library">Globalenvs</span>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <span class="id" title="library">Conventions</span>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.layerlib.AuxLemma.html#"><span class="id" title="library">AuxLemma</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.layerlib.GlobIdent.html#"><span class="id" title="library">GlobIdent</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <span class="id" title="library">Smallstep</span>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.layerlib.CommonTactic.html#"><span class="id" title="library">CommonTactic</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="http://coq.inria.fr/distrib/8.4pl6/stdlib/Coq.Logic.FunctionalExtensionality.html#"><span class="id" title="library">Coq.Logic.FunctionalExtensionality</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.layerlib.AuxFunctions.html#"><span class="id" title="library">AuxFunctions</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.layerlib.LAsm.html#"><span class="id" title="library">LAsm</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.objects.cpulocaldef.GlobalOracle.html#"><span class="id" title="library">GlobalOracle</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <span class="id" title="library">liblayers.compat.CompatLayers</span>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.ticketlog.MBoot.html#"><span class="id" title="library">MBoot</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.clib.RealParams.html#"><span class="id" title="library">RealParams</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.objects.AbstractDataType.html#"><span class="id" title="library">AbstractDataType</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.flatmem.FlatMemory.html#"><span class="id" title="library">FlatMemory</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <span class="id" title="library">Decision</span>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.layerlib.LAsmModuleSem.html#"><span class="id" title="library">LAsmModuleSem</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.layerlib.Soundness.html#"><span class="id" title="library">Soundness</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <span class="id" title="library">CompatExternalCalls</span>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.layerlib.LinkTactic.html#"><span class="id" title="library">LinkTactic</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <span class="id" title="library">I64Layer</span>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <span class="id" title="library">StencilImpl</span>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <span class="id" title="library">MakeProgram</span>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <span class="id" title="library">MakeProgramImpl</span>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.layerlib.LAsmModuleSemAux.html#"><span class="id" title="library">LAsmModuleSemAux</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <span class="id" title="library">liblayers.compat.CompatGenSem</span>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.clib.TacticsForTesting.html#"><span class="id" title="library">TacticsForTesting</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.conlib.conmclib.Concurrent_Linking_Lib.html#"><span class="id" title="library">Concurrent_Linking_Lib</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.conlib.conmclib.Concurrent_Linking_Def.html#"><span class="id" title="library">Concurrent_Linking_Def</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.conlib.conmclib.Concurrent_Linking_Prop.html#"><span class="id" title="library">Concurrent_Linking_Prop</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.multicore.semantics.HWSemImpl.html#"><span class="id" title="library">HWSemImpl</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.multicore.semantics.ConcurrentOracle.html#"><span class="id" title="library">ConcurrentOracle</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.multicore.semantics.HWStepSemImpl.html#"><span class="id" title="library">HWStepSemImpl</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.multicore.semantics.OracleSemImpl.html#"><span class="id" title="library">OracleSemImpl</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.multicore.semantics.EnvSemImpl.html#"><span class="id" title="library">EnvSemImpl</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.multicore.semantics.SingleSemImpl.html#"><span class="id" title="library">SingleSemImpl</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.multicore.semantics.BigSemImpl.html#"><span class="id" title="library">BigSemImpl</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.multicore.semantics.Big2SemImpl.html#"><span class="id" title="library">Big2SemImpl</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.multicore.semantics.SplitSemImpl.html#"><span class="id" title="library">SplitSemImpl</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.multicore.semantics.ReorderSemImpl.html#"><span class="id" title="library">ReorderSemImpl</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.multicore.semantics.SeparateSemImpl.html#"><span class="id" title="library">SeparateSemImpl</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.multicore.refins.AsmOracleSemtoHWStepSem.html#"><span class="id" title="library">AsmOracleSemtoHWStepSem</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.multicore.refins.AsmEnvSemtoOracleSem.html#"><span class="id" title="library">AsmEnvSemtoOracleSem</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.multicore.refins.AsmEnvSemtoEnvSem.html#"><span class="id" title="library">AsmEnvSemtoEnvSem</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.multicore.refins.AsmSingleSemtoEnvSem.html#"><span class="id" title="library">AsmSingleSemtoEnvSem</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.multicore.refins.AsmBigSemtoSingleSem.html#"><span class="id" title="library">AsmBigSemtoSingleSem</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.multicore.refins.AsmBig2SemtoBigSem.html#"><span class="id" title="library">AsmBig2SemtoBigSem</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.multicore.refins.AsmSplitSemtoBig2Sem.html#"><span class="id" title="library">AsmSplitSemtoBig2Sem</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.multicore.refins.AsmReorderSemtoSplitSem.html#"><span class="id" title="library">AsmReorderSemtoSplitSem</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.multicore.refins.AsmReorderSemtoReorderSem.html#"><span class="id" title="library">AsmReorderSemtoReorderSem</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.multicore.refins.AsmSepSemtoReorderSem.html#"><span class="id" title="library">AsmSepSemtoReorderSem</span></a>.<br/>
+<span class="id" title="keyword">Require</span> <span class="id" title="keyword">Import</span> <a class="idref" href="mcertikos.multicore.refins.AsmLAsmtoSepSem.html#"><span class="id" title="library">AsmLAsmtoSepSem</span></a>.<br/>
+
+<br/>
+<span class="id" title="keyword">Section</span> <a name="LinkWithLAsmSim"><span class="id" title="section">LinkWithLAsmSim</span></a>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span> `{<span class="id" title="var">Hmem</span>: <span class="id" title="class">Mem.MemoryModelX</span>}.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span> `{<span class="id" title="var">Hmwd</span>: <span class="id" title="class">UseMemWithData</span> <a class="idref" href="mcertikos.multicore.Concurrent_Linking.html#LinkWithLAsmSim.mem"><span class="id" title="variable">mem</span></a>}.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span> `{<span class="id" title="var">real_params</span>: <a class="idref" href="mcertikos.clib.RealParams.html#RealParams"><span class="id" title="class">RealParams</span></a>}.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span> `{<span class="id" title="var">multi_oracle_prop</span>: <a class="idref" href="mcertikos.objects.cpulocaldef.GlobalOracleProp.html#MultiOracleProp"><span class="id" title="class">MultiOracleProp</span></a>}.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span> `{<span class="id" title="var">builtin_idents_norepet_prf</span>: <span class="id" title="class">CompCertBuiltins.BuiltinIdentsNorepet</span>}.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Notation</span> <a name="LDATA"><span class="id" title="abbreviation">LDATA</span></a> := <a class="idref" href="mcertikos.objects.AbstractDataType.html#RData"><span class="id" title="record">RData</span></a>.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Notation</span> <a name="LDATAOps"><span class="id" title="abbreviation">LDATAOps</span></a> := (<span class="id" title="definition">cdata</span> (<span class="id" title="var">cdata_ops</span> := <a class="idref" href="mcertikos.ticketlog.MBoot.html#mboot_data_ops"><span class="id" title="instance">mboot_data_ops</span></a>) <a class="idref" href="mcertikos.multicore.Concurrent_Linking.html#LDATA"><span class="id" title="abbreviation">LDATA</span></a>).<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Local</span>&nbsp;<span class="id" title="keyword">Open</span> <span class="id" title="keyword">Scope</span> <span class="id" title="var">Z_scope</span>.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span> `{<span class="id" title="var">pmap</span>: <a class="idref" href="mcertikos.conlib.conmclib.Concurrent_Linking_Lib.html#PartialMap"><span class="id" title="class">PartialMap</span></a>}.<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span> `{<span class="id" title="var">zset_op</span>: <a class="idref" href="mcertikos.conlib.conmclib.Concurrent_Linking_Lib.html#ZSet_operation"><span class="id" title="class">ZSet_operation</span></a>}.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Context</span> `{<span class="id" title="var">mc_oracle_cond</span>: <a class="idref" href="mcertikos.multicore.semantics.ConcurrentOracle.html#MCLinkOracleCond"><span class="id" title="class">MCLinkOracleCond</span></a> (<span class="id" title="var">mem</span> := <a class="idref" href="mcertikos.multicore.Concurrent_Linking.html#LinkWithLAsmSim.mem"><span class="id" title="variable">mem</span></a>) (<span class="id" title="var">memory_model_ops</span> := <a class="idref" href="mcertikos.multicore.Concurrent_Linking.html#LinkWithLAsmSim.memory_model_ops"><span class="id" title="variable">memory_model_ops</span></a>) (<span class="id" title="var">Hmwd</span> := <a class="idref" href="mcertikos.multicore.Concurrent_Linking.html#LinkWithLAsmSim.Hmwd"><span class="id" title="variable">Hmwd</span></a>)<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(<span class="id" title="var">Hmem</span> := <a class="idref" href="mcertikos.multicore.Concurrent_Linking.html#LinkWithLAsmSim.Hmem"><span class="id" title="variable">Hmem</span></a>) (<span class="id" title="var">real_params_ops</span> := <a class="idref" href="mcertikos.multicore.Concurrent_Linking.html#LinkWithLAsmSim.real_params_ops"><span class="id" title="variable">real_params_ops</span></a>)<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(<span class="id" title="var">oracle_ops0</span> := <a class="idref" href="mcertikos.multicore.Concurrent_Linking.html#LinkWithLAsmSim.oracle_ops0"><span class="id" title="variable">oracle_ops0</span></a>) (<span class="id" title="var">oracle_ops</span> := <a class="idref" href="mcertikos.multicore.Concurrent_Linking.html#LinkWithLAsmSim.oracle_ops"><span class="id" title="variable">oracle_ops</span></a>) (<span class="id" title="var">big_ops</span> := <a class="idref" href="mcertikos.multicore.Concurrent_Linking.html#LinkWithLAsmSim.big_ops"><span class="id" title="variable">big_ops</span></a>)<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(<span class="id" title="var">builtin_idents_norepet_prf</span> := <a class="idref" href="mcertikos.multicore.Concurrent_Linking.html#LinkWithLAsmSim.builtin_idents_norepet_prf"><span class="id" title="variable">builtin_idents_norepet_prf</span></a>)<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(<span class="id" title="var">zset_op</span> := <a class="idref" href="mcertikos.multicore.Concurrent_Linking.html#LinkWithLAsmSim.zset_op"><span class="id" title="variable">zset_op</span></a>) (<span class="id" title="var">pmap</span> := <a class="idref" href="mcertikos.multicore.Concurrent_Linking.html#LinkWithLAsmSim.pmap"><span class="id" title="variable">pmap</span></a>)}.<br/>
+
+<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Theorem</span> <a name="concurrent_backward_simulation"><span class="id" title="lemma">concurrent_backward_simulation</span></a>:<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="keyword">∀</span> (<span class="id" title="var">s</span>: <span class="id" title="record">stencil</span>) (<span class="id" title="var">CTXT</span>: <a class="idref" href="mcertikos.layerlib.LAsm.html#module"><span class="id" title="definition">LAsm.module</span></a>) (<span class="id" title="var">ph</span>: <span class="id" title="record">AST.program</span> <a class="idref" href="mcertikos.layerlib.LAsm.html#fundef"><span class="id" title="definition">fundef</span></a> <a class="idref" href="http://coq.inria.fr/distrib/8.4pl6/stdlib/Coq.Init.Datatypes.html#unit"><span class="id" title="inductive">unit</span></a>)<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(<span class="id" title="var">Hmakep</span>: <span class="id" title="definition">make_program</span> (<span class="id" title="var">module_ops</span>:= <a class="idref" href="mcertikos.layerlib.LAsm.html#module_ops"><span class="id" title="instance">LAsm.module_ops</span></a>) <a class="idref" href="mcertikos.multicore.Concurrent_Linking.html#s"><span class="id" title="variable">s</span></a> <a class="idref" href="mcertikos.multicore.Concurrent_Linking.html#CTXT"><span class="id" title="variable">CTXT</span></a> (<a class="idref" href="mcertikos.ticketlog.MBoot.html#mboot"><span class="id" title="definition">mboot</span></a> <span class="id" title="notation">⊕</span> <span class="id" title="definition">L64</span>) <a class="idref" href="http://coq.inria.fr/distrib/8.4pl6/stdlib/Coq.Init.Logic.html#1c39bf18749e5cc609e83c0a0ba5a372"><span class="id" title="notation">=</span></a> <span class="id" title="constructor">OK</span> <a class="idref" href="mcertikos.multicore.Concurrent_Linking.html#ph"><span class="id" title="variable">ph</span></a>),<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="record">backward_simulation</span><br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(<a class="idref" href="mcertikos.layerlib.LAsm.html#semantics"><span class="id" title="definition">LAsm.semantics</span></a> (<span class="id" title="var">lcfg_ops</span> := <a class="idref" href="mcertikos.layerlib.LAsmModuleSemDef.html#LC"><span class="id" title="instance">LC</span></a> (<a class="idref" href="mcertikos.ticketlog.MBoot.html#mboot"><span class="id" title="definition">mboot</span></a> <span class="id" title="notation">⊕</span> <span class="id" title="definition">L64</span>)) <a class="idref" href="mcertikos.multicore.Concurrent_Linking.html#ph"><span class="id" title="variable">ph</span></a>)          <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(<a class="idref" href="mcertikos.multicore.semantics.HWStepSemImpl.html#hwstep_semantics"><span class="id" title="definition">hwstep_semantics</span></a> <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(<span class="id" title="var">Hmakege</span> := <a class="idref" href="mcertikos.layerlib.LAsmModuleSemDef.html#make_program_globalenv"><span class="id" title="lemma">make_program_globalenv</span></a> (<span class="id" title="var">make_program_ops</span> := <span class="id" title="instance">make_program_ops</span>) <span class="id" title="var">_</span> <span class="id" title="var">_</span> <span class="id" title="var">_</span> <span class="id" title="var">_</span> <a class="idref" href="mcertikos.multicore.Concurrent_Linking.html#Hmakep"><span class="id" title="variable">Hmakep</span></a>) <br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(<span class="id" title="definition">Genv.globalenv</span> <a class="idref" href="mcertikos.multicore.Concurrent_Linking.html#ph"><span class="id" title="variable">ph</span></a>) <a class="idref" href="mcertikos.multicore.Concurrent_Linking.html#s"><span class="id" title="variable">s</span></a> <a class="idref" href="mcertikos.multicore.Concurrent_Linking.html#CTXT"><span class="id" title="variable">CTXT</span></a> <a class="idref" href="mcertikos.multicore.Concurrent_Linking.html#ph"><span class="id" title="variable">ph</span></a>).<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Proof</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">intros</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="id" title="tactic">eapply</span> <span class="id" title="lemma">compose_backward_simulation</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;- <span class="id" title="tactic">eapply</span> <a class="idref" href="mcertikos.multicore.semantics.HWStepSemImpl.html#hwstep_semantics_single_events"><span class="id" title="lemma">hwstep_semantics_single_events</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;- <span class="id" title="tactic">eapply</span> <a class="idref" href="mcertikos.multicore.refins.AsmLAsmtoSepSem.html#cl_backward_simulation"><span class="id" title="lemma">AsmLAsmtoSepSem.cl_backward_simulation</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;- <span class="id" title="tactic">eapply</span> <span class="id" title="lemma">compose_backward_simulation</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ <span class="id" title="tactic">eapply</span> <a class="idref" href="mcertikos.multicore.semantics.HWStepSemImpl.html#hwstep_semantics_single_events"><span class="id" title="lemma">hwstep_semantics_single_events</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ <span class="id" title="tactic">eapply</span> <a class="idref" href="mcertikos.multicore.refins.AsmSepSemtoReorderSem.html#cl_backward_simulation"><span class="id" title="lemma">AsmSepSemtoReorderSem.cl_backward_simulation</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ <span class="id" title="tactic">eapply</span> <span class="id" title="lemma">compose_backward_simulation</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;× <span class="id" title="tactic">eapply</span> <a class="idref" href="mcertikos.multicore.semantics.HWStepSemImpl.html#hwstep_semantics_single_events"><span class="id" title="lemma">hwstep_semantics_single_events</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;× <span class="id" title="tactic">eapply</span> <a class="idref" href="mcertikos.multicore.refins.AsmReorderSemtoReorderSem.html#cl_backward_simulation"><span class="id" title="lemma">AsmReorderSemtoReorderSem.cl_backward_simulation</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;× <span class="id" title="tactic">eapply</span> <span class="id" title="lemma">compose_backward_simulation</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{ <span class="id" title="tactic">eapply</span> <a class="idref" href="mcertikos.multicore.semantics.HWStepSemImpl.html#hwstep_semantics_single_events"><span class="id" title="lemma">hwstep_semantics_single_events</span></a>. }<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{ <span class="id" title="tactic">eapply</span> <a class="idref" href="mcertikos.multicore.refins.AsmReorderSemtoSplitSem.html#cl_backward_simulation"><span class="id" title="lemma">AsmReorderSemtoSplitSem.cl_backward_simulation</span></a>. }<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{ <span class="id" title="tactic">eapply</span> <span class="id" title="lemma">compose_backward_simulation</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <span class="id" title="tactic">eapply</span> <a class="idref" href="mcertikos.multicore.semantics.HWStepSemImpl.html#hwstep_semantics_single_events"><span class="id" title="lemma">hwstep_semantics_single_events</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <span class="id" title="tactic">eapply</span> <a class="idref" href="mcertikos.multicore.refins.AsmSplitSemtoBig2Sem.html#cl_backward_simulation"><span class="id" title="lemma">AsmSplitSemtoBig2Sem.cl_backward_simulation</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <span class="id" title="tactic">eapply</span> <span class="id" title="lemma">compose_backward_simulation</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ <span class="id" title="tactic">eapply</span> <a class="idref" href="mcertikos.multicore.semantics.HWStepSemImpl.html#hwstep_semantics_single_events"><span class="id" title="lemma">hwstep_semantics_single_events</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ <span class="id" title="tactic">eapply</span> <a class="idref" href="mcertikos.multicore.refins.AsmBig2SemtoBigSem.html#cl_backward_simulation"><span class="id" title="lemma">AsmBig2SemtoBigSem.cl_backward_simulation</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ <span class="id" title="tactic">eapply</span> <span class="id" title="lemma">compose_backward_simulation</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;× <span class="id" title="tactic">eapply</span> <a class="idref" href="mcertikos.multicore.semantics.HWStepSemImpl.html#hwstep_semantics_single_events"><span class="id" title="lemma">hwstep_semantics_single_events</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;× <span class="id" title="tactic">eapply</span> <a class="idref" href="mcertikos.multicore.refins.AsmBigSemtoSingleSem.html#cl_backward_simulation"><span class="id" title="lemma">AsmBigSemtoSingleSem.cl_backward_simulation</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;× <span class="id" title="tactic">eapply</span> <span class="id" title="lemma">compose_backward_simulation</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{ <span class="id" title="tactic">eapply</span> <a class="idref" href="mcertikos.multicore.semantics.HWStepSemImpl.html#hwstep_semantics_single_events"><span class="id" title="lemma">hwstep_semantics_single_events</span></a>. }<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{ <span class="id" title="tactic">eapply</span> <a class="idref" href="mcertikos.multicore.refins.AsmSingleSemtoEnvSem.html#cl_backward_simulation"><span class="id" title="lemma">AsmSingleSemtoEnvSem.cl_backward_simulation</span></a>. }<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{ <span class="id" title="tactic">eapply</span> <span class="id" title="lemma">compose_backward_simulation</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <span class="id" title="tactic">eapply</span> <a class="idref" href="mcertikos.multicore.semantics.HWStepSemImpl.html#hwstep_semantics_single_events"><span class="id" title="lemma">hwstep_semantics_single_events</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <span class="id" title="tactic">eapply</span> <a class="idref" href="mcertikos.multicore.refins.AsmEnvSemtoEnvSem.html#cl_backward_simulation"><span class="id" title="lemma">AsmEnvSemtoEnvSem.cl_backward_simulation</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <span class="id" title="tactic">eapply</span> <span class="id" title="lemma">compose_backward_simulation</span>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ <span class="id" title="tactic">eapply</span> <a class="idref" href="mcertikos.multicore.semantics.HWStepSemImpl.html#hwstep_semantics_single_events"><span class="id" title="lemma">hwstep_semantics_single_events</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ <span class="id" title="tactic">eapply</span> <a class="idref" href="mcertikos.multicore.refins.AsmEnvSemtoOracleSem.html#cl_backward_simulation"><span class="id" title="lemma">AsmEnvSemtoOracleSem.cl_backward_simulation</span></a>.<br/>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ <span class="id" title="tactic">eapply</span> <a class="idref" href="mcertikos.multicore.refins.AsmOracleSemtoHWStepSem.html#cl_backward_simulation"><span class="id" title="lemma">AsmOracleSemtoHWStepSem.cl_backward_simulation</span></a>. } }<br/>
+&nbsp;&nbsp;<span class="id" title="keyword">Qed</span>.<br/>
+
+<br/>
+<span class="id" title="keyword">End</span> <a class="idref" href="mcertikos.multicore.Concurrent_Linking.html#LinkWithLAsmSim"><span class="id" title="section">LinkWithLAsmSim</span></a>.<br/>
+
+<br/>
+</div>
+</div>
+
+<div id="footer">
+<hr/><a href="index.html">Index</a><hr/>This page has been generated by <a href="http://coq.inria.fr/">coqdoc</a>
+</div>
+
+</div>
+
+</body>
+</html>
